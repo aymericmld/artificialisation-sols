@@ -27,47 +27,41 @@ L'étape recalcule tout, puis écrit huit tables et cinq vues dans le schéma `a
 | `v_trajectoire_departement` | Trajectoire par département, pour la carte |
 | `v_communes` | Trajectoire et croissance par commune |
 
-## 3. Connecter Metabase
+## 3. Créer le compte Metabase
 
-Au premier lancement, Metabase demande de créer un compte, puis d'ajouter une base :
+Au premier lancement, Metabase demande de créer un compte administrateur. À l'étape « Ajouter vos données », choisir « J'ajouterai mes données plus tard » : le script de l'étape suivante connecte la base.
 
-| Champ | Valeur |
-|---|---|
-| Type | PostgreSQL |
-| Hôte | `postgis` (nom du service Docker ; `localhost` si Metabase tourne hors Docker) |
-| Port | `5432` |
-| Base | `artificialisation` |
-| Utilisateur / mot de passe | `postgres` / `artif` |
-| Schémas | `artif` uniquement |
+## 4. Créer le tableau de bord
 
-## 4. Ajouter la carte des départements
+Une fois connecté à Metabase, ouvrir la console du navigateur (Cmd+Option+J dans Chrome), coller le contenu de [`metabase/creer_tableau_de_bord.js`](../metabase/creer_tableau_de_bord.js) et valider. Le script passe par l'API de Metabase pour :
 
-Administration → Paramètres → Cartes → Ajouter une carte :
+- connecter la base PostgreSQL (schéma `artif` uniquement) et attendre sa synchronisation ;
+- déclarer la carte des départements (GeoJSON de ce dépôt, clé `code`) ;
+- créer une collection « Artificialisation des sols » et ses dix questions en SQL natif ;
+- monter le tableau de bord, avec trois filtres reliés aux questions : Région, Département, Intercommunalité ;
+- régler l'affichage des nombres au format français.
 
-- URL : `https://raw.githubusercontent.com/aymericmld/artificialisation-sols/main/data/reference/departements.geojson`
-- Identifiant de région : `code` ; nom affiché : `nom`.
+Si Metabase ne tourne pas dans le même `docker compose` que PostgreSQL, adapter l'hôte dans `CONFIG` en tête du script.
 
-## 5. Monter le tableau de bord
+## 5. Ce que contient le tableau de bord
 
-Créer chaque question en SQL natif depuis `metabase/questions.sql`, avec la visualisation indiquée en commentaire, puis les placer sur un tableau de bord « Artificialisation des sols ». Disposition proposée :
+![Tableau de bord, France entière](images/metabase_france.jpg)
 
-```text
-┌───────────────┬───────────────┬───────────────┬───────────────┐
-│ Rythme        │ Évolution     │ Enveloppe     │ Rythme requis │   1. chiffres clés
-│ 2021-2023     │ du rythme     │ consommée     │ 2025-2030     │
-├───────────────┴───────────────┴───────┬───────┴───────────────┤
-│ 2. Consommation annuelle par          │ 3. Carte des          │
-│    destination                        │    départements       │
-├───────────────────────────────────────┼───────────────────────┤
-│ 5. Tableau des intercommunalités      │ 4. EPCI par           │
-│                                       │    trajectoire        │
-├───────────────────────────────────────┼───────────────────────┤
-│ 6. Consommation et ménages gagnés     │ 7. m² par ménage      │
-│    par commune                        │    selon la densité   │
-└───────────────────────────────────────┴───────────────────────┘
-```
+| Carte | Contenu | Filtres |
+|---|---|---|
+| Chiffres clés | Rythme 2021-2023, évolution, part de l'enveloppe consommée, rythme requis (France entière) | aucun |
+| Consommation annuelle | Hectares par année et par destination | Région, Département, Intercommunalité |
+| Carte | Évolution du rythme par département | Région |
+| Trajectoire des intercommunalités | Rythmes, évolution, enveloppe, efficacité, ratio observé / attendu ; en rouge les hausses et les enveloppes dépassées | Région, Département, Intercommunalité |
+| Intercommunalités selon leur trajectoire | Nombre d'EPCI par statut | Région, Département |
+| Consommation et ménages gagnés | Une intercommunalité par point, 2011-2022 | Région, Département |
+| m² par ménage gagné | Selon la grille de densité de l'INSEE | aucun |
 
-Ajouter trois filtres « Texte ou catégorie » (Région, Département, Intercommunalité) et les relier aux variables `{{region}}`, `{{departement}}` et `{{epci}}` des questions qui les utilisent. Choisir un département met alors à jour la série annuelle, la carte, la répartition des EPCI et le tableau.
+Filtré sur le Finistère :
+
+![Tableau de bord filtré sur le Finistère](images/metabase_finistere.jpg)
+
+Les requêtes de chaque carte sont aussi lisibles dans [`metabase/questions.sql`](../metabase/questions.sql), sous une forme à recopier à la main si besoin.
 
 ## 6. Mettre à jour
 

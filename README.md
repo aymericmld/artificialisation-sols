@@ -8,8 +8,7 @@ Ce projet exploite les données communales de consommation d'espaces du Cerema (
 |---|---|
 | [Méthodologie](docs/METHODOLOGIE.md) | Indicateurs, modèle, contrôles et limites |
 | [Récupérer les données](docs/DONNEES.md) | Le fichier à télécharger et où le déposer |
-| [Tableau de bord Metabase](docs/METABASE.md) | Démarrage avec Docker, vues SQL, montage du tableau de bord |
-| [Questions Metabase](metabase/questions.sql) | Les sept requêtes du tableau de bord |
+| [Tableau de bord Metabase](docs/METABASE.md) | Démarrage avec Docker, vues SQL, création automatique du tableau de bord |
 
 > Résultats calculés le 24 novembre 2026 sur le millésime **2011-2025** du Cerema. L'année 2024 y est **sous-estimée** (le Cerema attend sa stabilisation dans deux à trois millésimes) : elle compte dans le cumul consommé, présenté comme une borne basse, mais pas dans le rythme.
 
@@ -114,6 +113,12 @@ Le modèle explique 51 % des écarts de consommation entre communes (34 727 comm
 
 Dans le rural non périurbain et l'urbain intermédiaire, les communes qui perdent des ménages consomment aussi davantage que les autres : une partie de la consommation y répond à d'autres besoins que la démographie, que ce fichier ne permet pas d'identifier. Par intercommunalité, 137 consomment plus d'une fois et demie ce que prévoit le modèle, et 194 moins des deux tiers (sur celles dont la consommation attendue dépasse 20 ha). Ce ratio situe un territoire par rapport à des communes comparables ; il ne dit pas ce qu'il « aurait dû » consommer.
 
+## Le tableau de bord Metabase
+
+![Tableau de bord Metabase](docs/images/metabase_france.jpg)
+
+Le tableau de bord reprend ces résultats et se filtre par région, département et intercommunalité : la série annuelle, la répartition des EPCI, leur tableau détaillé et le nuage de points se recalculent pour le territoire choisi. Le script [`creer_tableau_de_bord.js`](metabase/creer_tableau_de_bord.js) le crée en une fois via l'API de Metabase ; voir [METABASE.md](docs/METABASE.md).
+
 ## Fichiers produits
 
 | Fichier | Contenu |
@@ -159,6 +164,8 @@ cp .Renviron.example .Renviron
 Rscript run.R base
 ```
 
+Puis, une fois le compte Metabase créé sur <http://localhost:3000>, exécuter `metabase/creer_tableau_de_bord.js` dans la console du navigateur.
+
 Les tests, sur un petit fichier synthétique au format du Cerema :
 
 ```bash
@@ -171,7 +178,7 @@ Rscript tests/testthat.R
 run.R              Point d'entrée : enchaîne les étapes
 R/                 Configuration, lecture, contrôles, indicateurs, modèle, exports, figures, base
 sql/               Vues PostgreSQL lues par Metabase
-metabase/          Requêtes du tableau de bord
+metabase/          Script de création du tableau de bord et requêtes SQL
 tests/             Tests unitaires (testthat) sur données synthétiques
 docs/              Méthodologie, guide des données, guide Metabase, figures
 data/reference/    Contours simplifiés des départements (carte)
