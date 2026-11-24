@@ -1,0 +1,70 @@
+{
+  "date_execution": "2026-11-24 18:45",
+  "fichier_source": "conso-com.csv",
+  "controles_bloquants": [
+    {
+      "nom": "Codes commune uniques et renseignés",
+      "ok": true,
+      "detail": "34856 communes"
+    },
+    {
+      "nom": "Département et EPCI renseignés",
+      "ok": true,
+      "detail": "1251 EPCI, 100 départements"
+    },
+    {
+      "nom": "Aucun flux négatif ou manquant",
+      "ok": true,
+      "detail": "14 colonnes annuelles"
+    },
+    {
+      "nom": "Somme des flux annuels égale au cumul 2011-2025 du Cerema",
+      "ok": true,
+      "detail": "écart maximal 0.0 m²"
+    },
+    {
+      "nom": "Total égal à la somme des destinations, chaque année",
+      "ok": true,
+      "detail": "écart maximal 0.0 m²"
+    },
+    {
+      "nom": "Consommation 2011-2024 inférieure à la surface communale",
+      "ok": true,
+      "detail": "34847 communes avec surface connue"
+    },
+    {
+      "nom": "Flux longs cohérents avec la table des communes",
+      "ok": true,
+      "detail": "299392 ha au total"
+    }
+  ],
+  "diagnostics": {
+    "communes_sans_surface": 9,
+    "communes_outre_mer": 112,
+    "communes_sans_emplois_2011_ou_2022": 11,
+    "communes_sans_consommation_2011_2024": 730,
+    "communes_avec_un_flux_annuel_superieur_a_20_ha": 540,
+    "consommation_par_annee_ha": {
+      "2011": 29470,
+      "2012": 27619,
+      "2013": 25173,
+      "2014": 22632,
+      "2015": 20511,
+      "2016": 20977,
+      "2017": 21172,
+      "2018": 20877,
+      "2019": 18754,
+      "2020": 19549,
+      "2021": 20130,
+      "2022": 19336,
+      "2023": 18073,
+      "2024": 15119
+    }
+  },
+  "modele": {
+    "observations": 34727,
+    "r2": 0.5145,
+    "r2_ajuste": 0.5129,
+    "erreur_residuelle_ha": 9.4695
+  }
+}

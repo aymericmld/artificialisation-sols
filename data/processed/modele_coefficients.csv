@@ -1,0 +1,14 @@
+variable,type_espace,estimation,erreur_type,p_valeur
+Commune littorale (ha),Toutes,-0.412,0.329,0.21
+Ha pour 100 ménages de plus,Urbain dense,0.421,0.024,0
+Ha pour 100 ménages de plus,Rural non périurbain,10.578,0.216,0
+Ha pour 100 ménages de plus,Rural périurbain,7.062,0.117,0
+Ha pour 100 ménages de plus,Urbain intermédiaire,2.138,0.051,0
+Ha pour 100 emplois de plus,Urbain dense,0.059,0.015,0
+Ha pour 100 emplois de plus,Rural non périurbain,3.591,0.2,0
+Ha pour 100 emplois de plus,Rural périurbain,2.725,0.095,0
+Ha pour 100 emplois de plus,Urbain intermédiaire,1.835,0.045,0
+Ha pour 100 ménages de moins,Urbain dense,-0.258,0.387,0.504
+Ha pour 100 ménages de moins,Rural non périurbain,7.777,0.611,0
+Ha pour 100 ménages de moins,Rural périurbain,1.366,1.795,0.447
+Ha pour 100 ménages de moins,Urbain intermédiaire,2.095,0.272,0

@@ -1,0 +1,10 @@
+# Copier en .Renviron à la racine du dépôt (lu automatiquement par R) et adapter.
+# Connexion PostgreSQL utilisée par « Rscript run.R base » ; valeurs de docker-compose.yml.
+PGHOST=localhost
+PGPORT=5432
+PGDATABASE=artificialisation
+PGUSER=postgres
+PGPASSWORD=artif
+ARTIF_SCHEMA=artif
+# Emplacement du fichier du Cerema, si ce n'est pas data/raw/conso-com.csv
+# ARTIF_FICHIER_CONSO=data/raw/conso-com.csv

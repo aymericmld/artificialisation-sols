@@ -1,0 +1,29 @@
+# PostgreSQL/PostGIS et Metabase pour le tableau de bord.
+# Démarrer : docker compose up -d
+#   - PostgreSQL : localhost:5432, base « artificialisation », utilisateur postgres / artif
+#   - Metabase   : http://localhost:3000 (sa configuration est conservée dans metabase/donnees/)
+services:
+  postgis:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: artificialisation
+      POSTGRES_PASSWORD: artif
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  metabase:
+    image: metabase/metabase:latest
+    depends_on:
+      - postgis
+    environment:
+      MB_DB_FILE: /metabase-data/metabase.db
+      JAVA_TIMEZONE: Europe/Paris
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./metabase/donnees:/metabase-data
+
+volumes:
+  pgdata:
