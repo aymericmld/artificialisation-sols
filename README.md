@@ -8,13 +8,12 @@ Ce projet exploite les données communales de consommation d'espaces du Cerema (
 
 > Le tableau de bord est servi depuis un poste personnel par un tunnel Cloudflare : il peut être momentanément indisponible. Les captures ci-dessous en donnent un aperçu.
 
-![Tableau de bord Metabase](docs/images/metabase_tableau_de_bord.jpg)
+![Tableau de bord Metabase](docs/images/metabase_tableau_de_bord.png)
 
 | Pour aller plus loin | |
 |---|---|
 | [Méthodologie](docs/METHODOLOGIE.md) | Indicateurs, modèle, contrôles et limites |
 | [Récupérer les données](docs/DONNEES.md) | Le fichier à télécharger et où le déposer |
-| [Tableau de bord Metabase](docs/METABASE.md) | Démarrage avec Docker, vues SQL, création automatique du tableau de bord |
 
 > Résultats calculés le 24 novembre 2026 sur le millésime **2011-2025** du Cerema. L'année 2024 y est **sous-estimée** (le Cerema attend sa stabilisation dans deux à trois millésimes) : elle compte dans le cumul consommé, présenté comme une borne basse, mais pas dans le rythme.
 
@@ -52,11 +51,11 @@ flowchart LR
 
 ### Une baisse trois fois trop lente
 
-![Trajectoire depuis 2021](docs/images/metabase_trajectoire.jpg)
+![Trajectoire depuis 2021](docs/images/metabase_trajectoire.png)
 
 Depuis 2021, la consommation cumulée se situe entre les deux trajectoires, plus près de la poursuite du rythme 2011-2020 que de l'objectif. À la fin de 2024, la France avait déjà consommé 72 660 ha, alors que la trajectoire de l'objectif en prévoyait 45 350.
 
-![Consommation annuelle par usage](docs/images/metabase_serie.jpg)
+![Consommation annuelle par usage](docs/images/metabase_serie.png)
 
 La consommation a nettement baissé entre 2011 et 2015, puis plafonné autour de 20 000 ha par an. Depuis 2021, elle recule de nouveau, mais lentement : 20 130 ha en 2021, 19 340 en 2022, 18 070 en 2023. Le chiffre de 2024 (15 120 ha) est provisoire et sera revu à la hausse.
 
@@ -71,13 +70,13 @@ La consommation a nettement baissé entre 2011 et 2015, puis plafonné autour de
 
 ### Une baisse inégale selon les usages
 
-![Rythme annuel par usage](docs/images/metabase_usages.jpg)
+![Rythme annuel par usage](docs/images/metabase_usages.png)
 
 L'habitat représente 65 % de la consommation, avant comme après 2021, et son rythme baisse de 15 %. L'activité économique baisse moins (-9 %) : sa part passe de 22 % à 24 %. Les routes (-34 %) et les voies ferrées (-28 %) reculent nettement, mais pèsent peu.
 
 ### Presque aucun territoire sur la trajectoire
 
-![Carte des départements](docs/images/metabase_carte.jpg)
+![Carte des départements](docs/images/metabase_carte.png)
 
 Seuls les Hauts-de-Seine, le Val-de-Marne et l'Yonne ont réduit leur rythme d'au moins moitié. Dix-neuf départements consomment plus qu'avant 2021, dont la Haute-Corse (+95 %), les Hautes-Alpes (+51 %) et la Nièvre (+48 %). Dans ces départements peu consommateurs, une grosse opération suffit à faire basculer le rythme : dans la Nièvre, une seule commune a consommé 30 ha en 2023, la moitié de ce que tout le département consommait chaque année avant 2021. Quatre départements ont déjà dépassé, dès 2024, l'enveloppe que leur donnerait une division par deux : la Haute-Corse, la Nièvre, la Seine-Saint-Denis et les Hautes-Alpes.
 
@@ -89,11 +88,11 @@ Les 397 intercommunalités stables ou en hausse pèsent 38 % de la consommation 
 
 Pour mesurer l'efficacité foncière, on rapporte les terres consommées pour l'habitat entre 2011 et 2022 au nombre de **ménages supplémentaires** sur la même période (recensements de l'INSEE). Sur ces onze ans, la France a gagné 2,85 millions de ménages et consommé 159 000 ha pour l'habitat (247 000 ha tous usages confondus) : 560 m² de terres par ménage supplémentaire en moyenne. Ce chiffre ne mesure pas la taille des parcelles : il dit combien de terres naturelles, agricoles ou forestières ont été prises pour chaque ménage de plus, sachant qu'une partie des logements se construit sur des terrains déjà urbanisés.
 
-![Nouveaux ménages et terres consommées par type d'espace](docs/images/metabase_menages.jpg)
+![Nouveaux ménages et terres consommées par type d'espace](docs/images/metabase_menages.png)
 
 L'urbain dense a accueilli 35 % des nouveaux ménages avec 4 % des terres consommées pour l'habitat ; le rural non périurbain, 8 % des nouveaux ménages avec 31 % de ces terres.
 
-![Terres consommées par ménage supplémentaire](docs/images/metabase_m2_menage.jpg)
+![Terres consommées par ménage supplémentaire](docs/images/metabase_m2_menage.png)
 
 | Type d'espace (grille de densité INSEE) | Part des ménages supplémentaires | Part des terres consommées pour l'habitat | m² par ménage supplémentaire |
 |---|---|---|---|
@@ -131,9 +130,9 @@ Le [tableau de bord en ligne](https://gauge-exclude-linking-greeting.trycloudfla
 
 Les filtres Région, Département et Intercommunalité s'appliquent à toutes les cartes. Un clic sur un département dans le tableau affiche ses intercommunalités ; un clic sur une intercommunalité recalcule les chiffres clés et les graphiques pour elle seule.
 
-![Détail par département et par intercommunalité](docs/images/metabase_drill_nievre.jpg)
+![Détail par département et par intercommunalité](docs/images/metabase_drill_nievre.png)
 
-Le script [`creer_tableau_de_bord.js`](metabase/creer_tableau_de_bord.js) crée tout le tableau de bord en une fois via l'API de Metabase ; voir [METABASE.md](docs/METABASE.md).
+Le script [`creer_tableau_de_bord.js`](metabase/creer_tableau_de_bord.js) crée tout le tableau de bord en une fois via l'API de Metabase : connexion à PostgreSQL, carte des départements, questions, filtres et filtrage au clic.
 
 ## Fichiers produits
 
@@ -170,7 +169,7 @@ Rscript run.R resultats
 | `resultats` | `Rscript run.R resultats` | Lecture, contrôles, indicateurs, modèle, CSV |
 | `base` | `Rscript run.R base` | Résultats, puis chargement dans PostgreSQL pour Metabase |
 
-Pour le tableau de bord, voir [METABASE.md](docs/METABASE.md) :
+Pour le tableau de bord, avec Docker :
 
 ```bash
 docker compose up -d
@@ -194,7 +193,7 @@ R/                 Configuration, lecture, contrôles, indicateurs, modèle, exp
 sql/               Vues PostgreSQL lues par Metabase
 metabase/          Script de création du tableau de bord (API Metabase)
 tests/             Tests unitaires (testthat) sur données synthétiques
-docs/              Méthodologie, guide des données, guide Metabase, captures du tableau de bord
+docs/              Méthodologie, guide des données, captures du tableau de bord
 data/reference/    Contours simplifiés des départements (carte Metabase)
 data/processed/    Résultats
 ```

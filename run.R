@@ -3,7 +3,7 @@
 # Point d'entrée de la chaîne. Usage :
 #   Rscript run.R resultats  lecture, contrôles, indicateurs, modèle, exports CSV
 #   Rscript run.R base       idem, puis chargement dans PostgreSQL pour Metabase
-# Les graphiques sont produits par Metabase (voir docs/METABASE.md).
+# Les graphiques sont produits par Metabase (voir metabase/creer_tableau_de_bord.js).
 # Le fichier source est lu dans data/raw/conso-com.csv (voir docs/DONNEES.md).
 
 invisible(Sys.setlocale("LC_ALL", "C.UTF-8"))

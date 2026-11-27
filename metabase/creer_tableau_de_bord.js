@@ -328,10 +328,10 @@ L'habitat représente les deux tiers de la consommation. Comparer le rythme de c
     place(q.destinations, 0, 41, 12, 8),
     place(q.serie, 12, 41, 12, 8),
     texte(`## Où s'installent les nouveaux ménages, et à quel coût en terres ?
-Entre 2011 et 2022, on rapporte les terres consommées pour l'habitat au nombre de **ménages supplémentaires** (recensements de l'INSEE). En France, l'**urbain dense** a accueilli 35 % des nouveaux ménages pour 4 % des terres consommées pour l'habitat, soit **66 m² par ménage** ; le **rural non périurbain** en a accueilli 8 % pour 31 % de ces terres, soit **2 086 m² par ménage**.`, 0, 49, 24, 3),
-    place(q.repartition, 0, 52, 14, 8, TOUS, { "card.title": "Part des nouveaux ménages et des terres consommées pour l'habitat (%)" }),
-    place(q.surface, 14, 52, 10, 8, TOUS, { "card.title": "Terres consommées par ménage en plus (m²)" }),
-    texte(`Source : Cerema, consommation d'espaces NAF 2011-2025 (Fichiers fonciers) ; INSEE, recensements 2011 et 2022. L'année 2024 est sous-estimée et n'entre que dans le cumul consommé. Méthode et code : [github.com/aymericmld/artificialisation-sols](https://github.com/aymericmld/artificialisation-sols).`, 0, 60, 24, 2),
+Entre 2011 et 2022, on rapporte les terres consommées pour l'habitat au nombre de **ménages supplémentaires** (recensements de l'INSEE). En France, l'**urbain dense** a accueilli 35 % des nouveaux ménages pour 4 % des terres consommées pour l'habitat, soit **66 m² par ménage** ; le **rural non périurbain** en a accueilli 8 % pour 31 % de ces terres, soit **2 086 m² par ménage**.`, 0, 49, 24, 4),
+    place(q.repartition, 0, 53, 14, 8, TOUS, { "card.title": "Part des nouveaux ménages et des terres consommées pour l'habitat (%)" }),
+    place(q.surface, 14, 53, 10, 8, TOUS, { "card.title": "Terres consommées par ménage en plus (m²)" }),
+    texte(`Source : Cerema, consommation d'espaces NAF 2011-2025 (Fichiers fonciers) ; INSEE, recensements 2011 et 2022. L'année 2024 est sous-estimée et n'entre que dans le cumul consommé. Méthode et code : [github.com/aymericmld/artificialisation-sols](https://github.com/aymericmld/artificialisation-sols).`, 0, 61, 24, 2),
   ];
   await api("PUT", `/dashboard/${tableau.id}`, { dashcards, parameters: params, width: "full" });
   return { tableau: tableau.id, url: `${location.origin}/dashboard/${tableau.id}`,
