@@ -1,6 +1,6 @@
 # Tableau de bord Metabase
 
-Le tableau de bord lit les vues que `Rscript run.R base` crée dans PostgreSQL. Toutes les requêtes sont dans [`metabase/questions.sql`](../metabase/questions.sql).
+Le tableau de bord lit les tables et les vues que `Rscript run.R base` crée dans PostgreSQL. Il est créé en une fois par [`metabase/creer_tableau_de_bord.js`](../metabase/creer_tableau_de_bord.js), qui contient aussi le SQL de chaque question.
 
 ## 1. Démarrer PostgreSQL et Metabase
 
@@ -36,33 +36,48 @@ Au premier lancement, Metabase demande de créer un compte administrateur. À l'
 Une fois connecté à Metabase, ouvrir la console du navigateur (Cmd+Option+J dans Chrome), coller le contenu de [`metabase/creer_tableau_de_bord.js`](../metabase/creer_tableau_de_bord.js) et valider. Le script passe par l'API de Metabase pour :
 
 - connecter la base PostgreSQL (schéma `artif` uniquement) et attendre sa synchronisation ;
-- déclarer la carte des départements (GeoJSON de ce dépôt, clé `code`) ;
-- créer une collection « Artificialisation des sols » et ses dix questions en SQL natif ;
-- monter le tableau de bord, avec trois filtres reliés aux questions : Région, Département, Intercommunalité ;
-- régler l'affichage des nombres au format français.
+- déclarer la carte des départements (GeoJSON de ce dépôt, clé `code`) et le format français des nombres ;
+- créer une collection « Artificialisation des sols » et ses treize questions en SQL natif (une version précédente est archivée) ;
+- monter le tableau de bord, ses trois filtres (Région, Département, Intercommunalité) et le filtrage au clic dans les tableaux.
 
 Si Metabase ne tourne pas dans le même `docker compose` que PostgreSQL, adapter l'hôte dans `CONFIG` en tête du script.
 
 ## 5. Ce que contient le tableau de bord
 
-![Tableau de bord, France entière](images/metabase_france.jpg)
+![Tableau de bord](images/metabase_tableau_de_bord.jpg)
 
-| Carte | Contenu | Filtres |
-|---|---|---|
-| Chiffres clés | Rythme 2021-2023, évolution, part de l'enveloppe consommée, rythme requis (France entière) | aucun |
-| Consommation annuelle | Hectares par année et par destination | Région, Département, Intercommunalité |
-| Carte | Évolution du rythme par département | Région |
-| Trajectoire des intercommunalités | Rythmes, évolution, enveloppe, efficacité, ratio observé / attendu ; en rouge les hausses et les enveloppes dépassées | Région, Département, Intercommunalité |
-| Intercommunalités selon leur trajectoire | Nombre d'EPCI par statut | Région, Département |
-| Consommation et ménages gagnés | Une intercommunalité par point, 2011-2022 | Région, Département |
-| m² par ménage gagné | Selon la grille de densité de l'INSEE | aucun |
+| Partie | Cartes |
+|---|---|
+| L'objectif politique | Texte sur la loi Climat et résilience et le ZAN ; chiffres clés : rythme 2011-2020, objectif, rythme 2021-2023, part de l'enveloppe utilisée, rythme à tenir en 2025-2030 |
+| Trajectoire | Consommation cumulée depuis 2021, comparée à la trajectoire de l'objectif et à la poursuite du rythme 2011-2020 ; carte de l'enveloppe consommée par département |
+| Par territoire | Tableau des départements, puis tableau des intercommunalités, avec objectif, évolution et enveloppe consommée |
+| Par usage | Rythme annuel de chaque usage avant et depuis la loi ; consommation annuelle par usage |
+| Efficacité foncière | Part des nouveaux ménages et des terres consommées pour l'habitat par type d'espace ; terres consommées par ménage supplémentaire |
 
-Filtré sur le Finistère :
+Tous les chiffres et graphiques se recalculent pour le territoire filtré, sauf la carte (filtrée par région seulement). Un clic sur un département dans le tableau renseigne le filtre Département ; un clic sur une intercommunalité renseigne le filtre Intercommunalité.
 
-![Tableau de bord filtré sur le Finistère](images/metabase_finistere.jpg)
+![Clic sur la Nièvre : ses intercommunalités s'affichent](images/metabase_drill_nievre.jpg)
 
-Les requêtes de chaque carte sont aussi lisibles dans [`metabase/questions.sql`](../metabase/questions.sql), sous une forme à recopier à la main si besoin.
+Les captures de ce dépôt viennent des liens publics des questions (`/public/question/…`), affichés à 900 px de large en thème clair.
 
 ## 6. Mettre à jour
 
 À chaque nouveau millésime du Cerema : remplacer `data/raw/conso-com.csv`, ajuster les années dans `R/config.R` si besoin, relancer `Rscript run.R base`. Les questions Metabase n'ont pas à être modifiées.
+
+## 7. Mettre en ligne
+
+Le tableau de bord est publié depuis un Mac par un tunnel Cloudflare, gratuit et sans compte :
+
+```bash
+docker run -d --name artif-tunnel --restart unless-stopped cloudflare/cloudflared:latest \
+  tunnel --no-autoupdate --url http://host.docker.internal:3000
+docker logs artif-tunnel 2>&1 | grep trycloudflare
+```
+
+La dernière commande affiche l'adresse publique (`https://….trycloudflare.com`). Dans Metabase :
+
+1. Administration → Paramètres → Général : renseigner cette adresse comme « Adresse du site ».
+2. Administration → Paramètres → Partage public : activer le partage public.
+3. Sur le tableau de bord, menu Partager → Lien public : copier le lien.
+
+Limites : le lien ne fonctionne que lorsque le Mac est allumé avec Docker lancé, et l'adresse change si le conteneur `artif-tunnel` est recréé. Seuls le tableau de bord et ses questions sont publics ; le reste de Metabase demande toujours une connexion. Pour une adresse fixe, il faut un tunnel nommé (compte Cloudflare et nom de domaine) ou un hébergement sur un serveur.

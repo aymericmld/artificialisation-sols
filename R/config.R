@@ -6,7 +6,6 @@ CONFIG <- list(
   # Fichier communal du Cerema (consommation d'ENAF 2011-2025), voir docs/DONNEES.md
   fichier_conso = Sys.getenv("ARTIF_FICHIER_CONSO", "data/raw/conso-com.csv"),
   dossier_sorties = "data/processed",
-  dossier_figures = "docs/images",
 
   # Les flux du fichier sont en m² malgré la mention « hectares » de la documentation :
   # 294,7 millions de m² en 2011, soit 29 470 ha, conforme aux publications du Cerema.

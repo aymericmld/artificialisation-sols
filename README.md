@@ -4,6 +4,12 @@
 
 Ce projet exploite les données communales de consommation d'espaces du Cerema (2011-2025), qui intègrent les recensements de l'INSEE. Une chaîne R calcule la trajectoire de chaque territoire et son efficacité foncière, estime un modèle de consommation attendue, puis charge les résultats dans PostgreSQL pour un tableau de bord Metabase.
 
+**[Ouvrir le tableau de bord Metabase en ligne](https://gauge-exclude-linking-greeting.trycloudflare.com/public/dashboard/71c3ec93-8a62-4354-8178-b6c518da95d6)** : filtrable par région, département et intercommunalité.
+
+> Le tableau de bord est servi depuis un poste personnel par un tunnel Cloudflare : il peut être momentanément indisponible. Les captures ci-dessous en donnent un aperçu.
+
+![Tableau de bord Metabase](docs/images/metabase_tableau_de_bord.jpg)
+
 | Pour aller plus loin | |
 |---|---|
 | [Méthodologie](docs/METHODOLOGIE.md) | Indicateurs, modèle, contrôles et limites |
@@ -17,7 +23,7 @@ Ce projet exploite les données communales de consommation d'espaces du Cerema (
 - La France a consommé **19 180 ha par an** en 2021-2023, contre 22 670 en 2011-2020 : **-15 %**, pour un objectif de -50 %.
 - **64 % de l'enveloppe** 2021-2030 est déjà consommée en quatre ans, au minimum. Pour la tenir, il faudrait descendre à **6 800 ha par an** jusqu'en 2030, soit -70 % par rapport à la décennie de référence.
 - Seuls **3 départements** sur 100 ont réduit leur rythme de moitié. **397 intercommunalités sur 1 251** consomment autant ou plus qu'avant 2021.
-- Un ménage supplémentaire a consommé **66 m²** de terres en ville dense, contre **2 090 m²** dans le rural non périurbain. **29 %** des espaces consommés entre 2011 et 2022 l'ont été dans des communes qui perdaient des habitants.
+- Chaque ménage supplémentaire s'est accompagné de **66 m²** de terres consommées pour l'habitat en ville dense, contre **2 090 m²** dans le rural non périurbain. **29 %** des espaces consommés entre 2011 et 2022 l'ont été dans des communes qui perdaient des habitants.
 
 ## La méthode
 
@@ -29,11 +35,11 @@ flowchart LR
     D -->|validés| E["Trajectoire<br>rythme, enveloppe"]
     D -->|validés| F["Efficacité foncière<br>m² par ménage"]
     F --> G["Modèle<br>consommation attendue"]
-    E --> H["CSV et figures"]
+    E --> H["CSV"]
     G --> H
     E --> I["PostgreSQL<br>tables et vues"]
     G --> I
-    I --> J["Metabase"]
+    I --> J["Metabase<br>tableau de bord"]
 ```
 
 1. **Lire.** Le fichier du Cerema donne, pour chaque commune, la surface consommée chaque année de 2011 à 2024 par destination (habitat, activité, mixte, routes, voies ferrées, inconnue), ainsi que la population, les ménages et les emplois des recensements 2011 et 2022.
@@ -46,7 +52,11 @@ flowchart LR
 
 ### Une baisse trois fois trop lente
 
-![Consommation annuelle d'espaces en France](docs/images/serie_nationale.png)
+![Trajectoire depuis 2021](docs/images/metabase_trajectoire.jpg)
+
+Depuis 2021, la consommation cumulée se situe entre les deux trajectoires, plus près de la poursuite du rythme 2011-2020 que de l'objectif. À la fin de 2024, la France avait déjà consommé 72 660 ha, alors que la trajectoire de l'objectif en prévoyait 45 350.
+
+![Consommation annuelle par usage](docs/images/metabase_serie.jpg)
 
 La consommation a nettement baissé entre 2011 et 2015, puis plafonné autour de 20 000 ha par an. Depuis 2021, elle recule de nouveau, mais lentement : 20 130 ha en 2021, 19 340 en 2022, 18 070 en 2023. Le chiffre de 2024 (15 120 ha) est provisoire et sera revu à la hausse.
 
@@ -59,36 +69,38 @@ La consommation a nettement baissé entre 2011 et 2015, puis plafonné autour de
 | Consommé 2021-2024 (borne basse) | 72 660 ha, soit 64 % de l'enveloppe |
 | Rythme nécessaire en 2025-2030 | 6 780 ha/an |
 
-L'habitat représente 65 % de la consommation, avant comme après 2021. La part de l'activité économique passe de 22 % à 24 %.
+### Une baisse inégale selon les usages
+
+![Rythme annuel par usage](docs/images/metabase_usages.jpg)
+
+L'habitat représente 65 % de la consommation, avant comme après 2021, et son rythme baisse de 15 %. L'activité économique baisse moins (-9 %) : sa part passe de 22 % à 24 %. Les routes (-34 %) et les voies ferrées (-28 %) reculent nettement, mais pèsent peu.
 
 ### Presque aucun territoire sur la trajectoire
 
-![Carte des départements](docs/images/carte_departements.png)
+![Carte des départements](docs/images/metabase_carte.jpg)
 
 Seuls les Hauts-de-Seine, le Val-de-Marne et l'Yonne ont réduit leur rythme d'au moins moitié. Dix-neuf départements consomment plus qu'avant 2021, dont la Haute-Corse (+95 %), les Hautes-Alpes (+51 %) et la Nièvre (+48 %). Dans ces départements peu consommateurs, une grosse opération suffit à faire basculer le rythme : dans la Nièvre, une seule commune a consommé 30 ha en 2023, la moitié de ce que tout le département consommait chaque année avant 2021. Quatre départements ont déjà dépassé, dès 2024, l'enveloppe que leur donnerait une division par deux : la Haute-Corse, la Nièvre, la Seine-Saint-Denis et les Hautes-Alpes.
 
 Aucune région n'approche l'objectif. Les plus avancées, La Réunion (-27 %) et l'Île-de-France (-25 %), en sont encore loin ; la Corse (+15 %) et la Guyane (+20 %) consomment davantage.
 
-![Intercommunalités selon leur trajectoire](docs/images/statut_epci.png)
-
 Les 397 intercommunalités stables ou en hausse pèsent 38 % de la consommation actuelle. 176 intercommunalités ont déjà consommé, en 2021-2024, plus que la moitié de leur consommation 2011-2020.
-
-### Zoom sur la Bretagne
-
-La Bretagne fait partie des régions qui ralentissent le moins : -7 %, et 70 % de son enveloppe repère déjà consommée. L'Ille-et-Vilaine accélère (+18 %), quand les Côtes-d'Armor (-21 %), le Morbihan (-15 %) et le Finistère (-14 %) ralentissent. Dans le Finistère, Brest Métropole a divisé son rythme par plus de deux (-62 %), Quimper Bretagne Occidentale (-3 %) et Concarneau Cornouaille (-7 %) restent stables, et plusieurs intercommunalités littorales accélèrent : Pays Fouesnantais (+26 %), Haut Pays Bigouden (+27 %), Cap Sizun-Pointe du Raz (+76 %).
 
 ### Des terres consommées loin de la croissance
 
-![Surface consommée par ménage supplémentaire](docs/images/efficacite_densite.png)
+Pour mesurer l'efficacité foncière, on rapporte les terres consommées pour l'habitat entre 2011 et 2022 au nombre de **ménages supplémentaires** sur la même période (recensements de l'INSEE). Sur ces onze ans, la France a gagné 2,85 millions de ménages et consommé 159 000 ha pour l'habitat (247 000 ha tous usages confondus) : 560 m² de terres par ménage supplémentaire en moyenne. Ce chiffre ne mesure pas la taille des parcelles : il dit combien de terres naturelles, agricoles ou forestières ont été prises pour chaque ménage de plus, sachant qu'une partie des logements se construit sur des terrains déjà urbanisés.
 
-Entre 2011 et 2022, la France a gagné 2,85 millions de ménages et consommé 247 000 ha, dont 159 000 pour l'habitat : 560 m² d'habitat par ménage supplémentaire en moyenne. L'écart entre types d'espaces est considérable.
+![Nouveaux ménages et terres consommées par type d'espace](docs/images/metabase_menages.jpg)
 
-| Type d'espace (grille de densité INSEE) | Part des ménages gagnés | Part de la consommation | m² d'habitat par ménage gagné |
+L'urbain dense a accueilli 35 % des nouveaux ménages avec 4 % des terres consommées pour l'habitat ; le rural non périurbain, 8 % des nouveaux ménages avec 31 % de ces terres.
+
+![Terres consommées par ménage supplémentaire](docs/images/metabase_m2_menage.jpg)
+
+| Type d'espace (grille de densité INSEE) | Part des ménages supplémentaires | Part des terres consommées pour l'habitat | m² par ménage supplémentaire |
 |---|---|---|---|
-| Urbain dense | 35 % | 6 % | 66 |
-| Urbain intermédiaire | 35 % | 29 % | 410 |
-| Rural périurbain | 22 % | 37 % | 1 009 |
-| Rural non périurbain | 8 % | 29 % | 2 086 |
+| Urbain dense | 35 % | 4 % | 66 |
+| Urbain intermédiaire | 35 % | 26 % | 410 |
+| Rural périurbain | 22 % | 39 % | 1 009 |
+| Rural non périurbain | 8 % | 31 % | 2 086 |
 
 La consommation ne suit pas toujours la croissance :
 
@@ -115,9 +127,13 @@ Dans le rural non périurbain et l'urbain intermédiaire, les communes qui perde
 
 ## Le tableau de bord Metabase
 
-![Tableau de bord Metabase](docs/images/metabase_france.jpg)
+Le [tableau de bord en ligne](https://gauge-exclude-linking-greeting.trycloudflare.com/public/dashboard/71c3ec93-8a62-4354-8178-b6c518da95d6) reprend ces résultats en cinq parties : l'objectif fixé par la loi et les chiffres clés, la trajectoire depuis 2021 et la carte des départements, le détail par territoire, les usages, et l'efficacité foncière. Tous les graphiques de ce README en sont issus.
 
-Le tableau de bord reprend ces résultats et se filtre par région, département et intercommunalité : la série annuelle, la répartition des EPCI, leur tableau détaillé et le nuage de points se recalculent pour le territoire choisi. Le script [`creer_tableau_de_bord.js`](metabase/creer_tableau_de_bord.js) le crée en une fois via l'API de Metabase ; voir [METABASE.md](docs/METABASE.md).
+Les filtres Région, Département et Intercommunalité s'appliquent à toutes les cartes. Un clic sur un département dans le tableau affiche ses intercommunalités ; un clic sur une intercommunalité recalcule les chiffres clés et les graphiques pour elle seule.
+
+![Détail par département et par intercommunalité](docs/images/metabase_drill_nievre.jpg)
+
+Le script [`creer_tableau_de_bord.js`](metabase/creer_tableau_de_bord.js) crée tout le tableau de bord en une fois via l'API de Metabase ; voir [METABASE.md](docs/METABASE.md).
 
 ## Fichiers produits
 
@@ -146,14 +162,12 @@ Rscript installer.R
 Déposer le fichier du Cerema selon [DONNEES.md](docs/DONNEES.md), puis :
 
 ```bash
-Rscript run.R tout
+Rscript run.R resultats
 ```
 
 | Étape | Commande | Rôle |
 |---|---|---|
 | `resultats` | `Rscript run.R resultats` | Lecture, contrôles, indicateurs, modèle, CSV |
-| `figures` | `Rscript run.R figures` | Idem, puis graphiques dans `docs/images/` |
-| `tout` | `Rscript run.R tout` | Résultats et figures |
 | `base` | `Rscript run.R base` | Résultats, puis chargement dans PostgreSQL pour Metabase |
 
 Pour le tableau de bord, voir [METABASE.md](docs/METABASE.md) :
@@ -176,12 +190,12 @@ Rscript tests/testthat.R
 
 ```text
 run.R              Point d'entrée : enchaîne les étapes
-R/                 Configuration, lecture, contrôles, indicateurs, modèle, exports, figures, base
+R/                 Configuration, lecture, contrôles, indicateurs, modèle, exports, base
 sql/               Vues PostgreSQL lues par Metabase
-metabase/          Script de création du tableau de bord et requêtes SQL
+metabase/          Script de création du tableau de bord (API Metabase)
 tests/             Tests unitaires (testthat) sur données synthétiques
-docs/              Méthodologie, guide des données, guide Metabase, figures
-data/reference/    Contours simplifiés des départements (carte)
+docs/              Méthodologie, guide des données, guide Metabase, captures du tableau de bord
+data/reference/    Contours simplifiés des départements (carte Metabase)
 data/processed/    Résultats
 ```
 

@@ -1,14 +1,13 @@
 #!/usr/bin/env Rscript
 # run.R
 # Point d'entrée de la chaîne. Usage :
-#   Rscript run.R tout       lecture, contrôles, indicateurs, modèle, exports, figures
-#   Rscript run.R resultats  idem sans les figures
-#   Rscript run.R figures    idem, en régénérant les figures
+#   Rscript run.R resultats  lecture, contrôles, indicateurs, modèle, exports CSV
 #   Rscript run.R base       idem, puis chargement dans PostgreSQL pour Metabase
+# Les graphiques sont produits par Metabase (voir docs/METABASE.md).
 # Le fichier source est lu dans data/raw/conso-com.csv (voir docs/DONNEES.md).
 
 invisible(Sys.setlocale("LC_ALL", "C.UTF-8"))
-for (f in c("config", "lecture", "controles", "indicateurs", "modele", "export", "figures", "base")) {
+for (f in c("config", "lecture", "controles", "indicateurs", "modele", "export", "base")) {
   source(file.path("R", paste0(f, ".R")), encoding = "UTF-8")
 }
 
@@ -45,15 +44,11 @@ calculer <- function() {
 }
 
 main <- function(etape) {
-  etapes <- c("tout", "resultats", "figures", "base")
+  etapes <- c("resultats", "base")
   if (!etape %in% etapes) stop("Étape inconnue : ", etape, ". Choix : ", paste(etapes, collapse = ", "))
   res <- calculer()
   message("Exports")
   exporter(res)
-  if (etape %in% c("tout", "figures")) {
-    message("Figures")
-    produire_figures(res)
-  }
   if (etape == "base") {
     message("Chargement PostgreSQL")
     charger_base(res)
@@ -63,5 +58,5 @@ main <- function(etape) {
 
 if (sys.nframe() == 0) {
   args <- commandArgs(trailingOnly = TRUE)
-  main(if (length(args) == 0) "tout" else args[1])
+  main(if (length(args) == 0) "resultats" else args[1])
 }

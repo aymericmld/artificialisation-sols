@@ -1,8 +1,9 @@
 // creer_tableau_de_bord.js
-// Crée la connexion PostgreSQL, la carte des départements, les questions et le tableau de bord
-// « Artificialisation des sols » via l'API de Metabase.
+// Crée le tableau de bord « Artificialisation des sols » via l'API de Metabase :
+// connexion PostgreSQL, carte des départements, questions, tableau de bord et filtres.
 // À exécuter dans la console du navigateur, sur l'instance Metabase, une fois connecté en
-// administrateur (Metabase 0.50 ou plus). Paramètres à adapter ci-dessous si besoin.
+// administrateur (Metabase 0.50 ou plus). Si une collection du même nom existe, elle est archivée
+// et recréée. Paramètres à adapter ci-dessous si besoin.
 
 const CONFIG = {
   // Hôte : « postgis » avec docker-compose.yml (Metabase et PostgreSQL sur le même réseau Docker),
@@ -10,6 +11,7 @@ const CONFIG = {
   base: { host: "postgis", port: 5432, dbname: "artificialisation", user: "postgres", password: "artif" },
   geojson: "https://raw.githubusercontent.com/aymericmld/artificialisation-sols/main/data/reference/departements.geojson",
   nomTableau: "Artificialisation des sols",
+  couleurs: { reference: "#2a78d6", actuel: "#eb6834", objectif: "#1f8a4c", tendance: "#a3a29e" },
 };
 
 const api = async (methode, chemin, corps) => {
@@ -25,29 +27,34 @@ const api = async (methode, chemin, corps) => {
 const pause = (ms) => new Promise((ok) => setTimeout(ok, ms));
 const uid = () => crypto.randomUUID();
 
+// Ordre de la grille de densité de l'INSEE
+const ordreDensite = (col) => `CASE ${col} WHEN 'Urbain dense' THEN 1 WHEN 'Urbain intermédiaire' THEN 2
+  WHEN 'Rural périurbain' THEN 3 ELSE 4 END`;
+
+// Mise en forme conditionnelle commune aux deux tableaux
+const miseEnForme = () => ({
+  "table.column_formatting": [
+    { id: 0, columns: ["Évolution (%)"], type: "single", operator: ">=", value: 0, color: "#c23b3a", highlight_row: false },
+    { id: 1, columns: ["Évolution (%)"], type: "single", operator: "<=", value: -50, color: "#2a78d6", highlight_row: false },
+    { id: 2, columns: ["Enveloppe consommée (%)"], type: "single", operator: ">=", value: 100, color: "#c23b3a", highlight_row: false },
+  ],
+});
+
 async function creer() {
-  // 1. Base de données (réutilisée si elle existe déjà)
+  // 1. Base de données (réutilisée si elle existe déjà), puis synchronisation
   const bases = (await api("GET", "/database")).data;
   let base = bases.find((b) => b.name === "Artificialisation");
   if (!base) {
     base = await api("POST", "/database", {
-      engine: "postgres",
-      name: "Artificialisation",
-      details: {
-        ...CONFIG.base, ssl: false,
-        "schema-filters-type": "inclusion", "schema-filters-patterns": "artif",
-      },
+      engine: "postgres", name: "Artificialisation",
+      details: { ...CONFIG.base, ssl: false, "schema-filters-type": "inclusion", "schema-filters-patterns": "artif" },
     });
   }
-  // Attendre la synchronisation des vues
-  let champs = {};
+  const champs = {};
   for (let i = 0; i < 60; i++) {
     const meta = await api("GET", `/database/${base.id}/metadata?include_hidden=true`);
     const tables = Object.fromEntries(meta.tables.map((t) => [t.name, t]));
-    const prets = ["v_flux_annuel", "v_trajectoire_epci", "v_trajectoire_departement", "epci"].every(
-      (n) => tables[n] && tables[n].fields.length > 0
-    );
-    if (prets) {
+    if (["v_flux_annuel", "v_trajectoire_epci", "departement", "commune"].every((n) => tables[n]?.fields.length)) {
       for (const t of meta.tables) for (const f of t.fields) champs[`${t.name}.${f.name}`] = f.id;
       break;
     }
@@ -56,199 +63,279 @@ async function creer() {
   }
   if (!champs["v_flux_annuel.region"]) throw new Error("Synchronisation des vues non terminée");
 
-  // 2. Carte personnalisée des départements
-  const reglages = await api("GET", "/setting/custom-geojson").catch(() => ({}));
+  // 2. Réglages : carte des départements, nombres au format français
+  const geo = (await api("GET", "/setting/custom-geojson").catch(() => ({}))) || {};
   await api("PUT", "/setting/custom-geojson", {
-    value: {
-      ...(reglages || {}),
-      departements: { name: "Départements", url: CONFIG.geojson, region_key: "code", region_name: "nom" },
-    },
+    value: { ...geo, departements: { name: "Départements", url: CONFIG.geojson, region_key: "code", region_name: "nom" } },
   });
-
-  // 3. Collection
-  const collection = await api("POST", "/collection", { name: CONFIG.nomTableau, color: "#2a78d6" });
-
-  // Filtres de champ (listes déroulantes alimentées par Metabase)
-  const filtre = (nom, libelle, champ) => ({
-    id: uid(), name: nom, "display-name": libelle, type: "dimension",
-    dimension: ["field", champs[champ], null], "widget-type": "string/=",
-  });
-  const question = (nom, sql, display, viz, tags = {}) =>
-    api("POST", "/card", {
-      name: nom, display, collection_id: collection.id, visualization_settings: viz,
-      dataset_query: {
-        type: "native", database: base.id,
-        native: { query: sql, "template-tags": tags },
-      },
-    });
-
-  // 4. Questions
-  // Chiffres affichés en entier (pas de « 19,2k ») ; l'unité figure dans le titre
-  const kpi = (nom, col, suffixe = "") =>
-    question(nom, `SELECT ${col} FROM artif.v_chiffres_cles`, "scalar", {
-      "scalar.compact_primary_number": false,
-      ...(suffixe ? { column_settings: { [`["name","${col}"]`]: { suffix: suffixe } } } : {}),
-    });
-
-  const q = {};
-  q.rythme = await kpi("Rythme 2021-2023 (ha/an)", "rythme_2021_2023_ha_an");
-  q.evolution = await kpi("Évolution du rythme vs 2011-2020", "evolution_rythme_pct", " %");
-  q.enveloppe = await kpi("Part de l'enveloppe 2021-2030 consommée (2021-2024)", "part_enveloppe_consommee_pct", " %");
-  q.requis = await kpi("Rythme requis 2025-2030 (ha/an)", "rythme_requis_2025_2030_ha_an");
-
-  q.serie = await question(
-    "Consommation annuelle par destination (ha)",
-    `SELECT annee::text AS annee, destination, round(sum(conso_ha)::numeric, 1) AS conso_ha
-FROM artif.v_flux_annuel
-WHERE {{region}} AND {{departement}} AND {{epci}}
-GROUP BY annee, destination
-ORDER BY annee, destination`,
-    "bar",
-    {
-      "graph.dimensions": ["annee", "destination"], "graph.metrics": ["conso_ha"],
-      "stackable.stack_type": "stacked", "graph.x_axis.title_text": "Année",
-      "graph.y_axis.title_text": "Hectares",
-    },
-    {
-      region: filtre("region", "Région", "v_flux_annuel.region"),
-      departement: filtre("departement", "Département", "v_flux_annuel.departement"),
-      epci: filtre("epci", "Intercommunalité", "v_flux_annuel.epci"),
-    }
-  );
-
-  q.carte = await question(
-    "Évolution du rythme par département (%)",
-    `SELECT code_departement, departement, evolution_rythme_pct, part_enveloppe_consommee_pct
-FROM artif.v_trajectoire_departement
-WHERE {{region}}`,
-    "map",
-    {
-      "map.type": "region", "map.region": "departements",
-      "map.dimension": "code_departement", "map.metric": "evolution_rythme_pct",
-    },
-    { region: filtre("region", "Région", "v_trajectoire_departement.region") }
-  );
-
-  q.statut = await question(
-    "Intercommunalités selon leur trajectoire",
-    `SELECT statut, count(*) AS nb_epci
-FROM artif.v_trajectoire_epci
-WHERE statut IN ('Baisse d''au moins 50 %', 'Baisse de moins de 50 %', 'Stable ou en hausse')
-  AND {{region}} AND {{departement}}
-GROUP BY statut
-ORDER BY statut`,
-    "row",
-    { "graph.dimensions": ["statut"], "graph.metrics": ["nb_epci"], "graph.show_values": true,
-      "graph.x_axis.title_text": "", "graph.y_axis.title_text": "Intercommunalités" },
-    {
-      region: filtre("region", "Région", "v_trajectoire_epci.region"),
-      departement: filtre("departement", "Département", "v_trajectoire_epci.departement"),
-    }
-  );
-
-  q.tableau = await question(
-    "Trajectoire des intercommunalités",
-    `SELECT epci AS "Intercommunalité", departement AS "Département",
-       rythme_2011_2020_ha_an AS "Rythme 2011-2020 (ha/an)",
-       rythme_2021_2023_ha_an AS "Rythme 2021-2023 (ha/an)",
-       evolution_rythme_pct AS "Évolution (%)",
-       consomme_2021_2024_ha AS "Consommé 2021-2024 (ha)",
-       part_enveloppe_consommee_pct AS "Enveloppe consommée (%)",
-       m2_habitat_par_menage_2011_2022 AS "m² d'habitat par ménage gagné",
-       ratio_observe_attendu_2011_2022 AS "Observé / attendu"
-FROM artif.v_trajectoire_epci
-WHERE {{region}} AND {{departement}} AND {{epci}}
-ORDER BY part_enveloppe_consommee_pct DESC NULLS LAST`,
-    "table",
-    {
-      "table.column_formatting": [
-        { id: 0, columns: ["Évolution (%)"], type: "single", operator: ">=", value: 0,
-          color: "#c23b3a", highlight_row: false },
-        { id: 1, columns: ["Évolution (%)"], type: "single", operator: "<=", value: -50,
-          color: "#2a78d6", highlight_row: false },
-        { id: 2, columns: ["Enveloppe consommée (%)"], type: "single", operator: ">=", value: 100,
-          color: "#c23b3a", highlight_row: false },
-      ],
-    },
-    {
-      region: filtre("region", "Région", "v_trajectoire_epci.region"),
-      departement: filtre("departement", "Département", "v_trajectoire_epci.departement"),
-      epci: filtre("epci", "Intercommunalité", "v_trajectoire_epci.epci"),
-    }
-  );
-
-  q.nuage = await question(
-    "Consommation 2011-2022 et ménages gagnés, par intercommunalité",
-    `SELECT gain_menages AS "Ménages gagnés 2011-2022",
-       round(conso_1122_ha::numeric, 1) AS "Consommation 2011-2022 (ha)",
-       epci AS "Intercommunalité"
-FROM artif.epci
-WHERE {{region}} AND {{departement}}`,
-    "scatter",
-    {
-      "graph.dimensions": ["Ménages gagnés 2011-2022"],
-      "graph.metrics": ["Consommation 2011-2022 (ha)"],
-    },
-    {
-      region: filtre("region", "Région", "epci.region"),
-      departement: filtre("departement", "Département", "epci.departement"),
-    }
-  );
-
-  q.densite = await question(
-    "m² d'habitat par ménage gagné, selon la densité (2011-2022)",
-    `SELECT densite AS "Type d'espace", round(m2_habitat_par_menage) AS "m² par ménage gagné"
-FROM artif.efficacite_densite
-ORDER BY m2_habitat_par_menage`,
-    "row",
-    { "graph.dimensions": ["Type d'espace"], "graph.metrics": ["m² par ménage gagné"], "graph.show_values": true,
-      "graph.x_axis.title_text": "", "graph.y_axis.title_text": "m² par ménage gagné" }
-  );
-
-  // 5. Tableau de bord, grille de 24 colonnes
-  const params = [
-    { id: uid(), name: "Région", slug: "region", type: "string/=", sectionId: "string" },
-    { id: uid(), name: "Département", slug: "departement", type: "string/=", sectionId: "string" },
-    { id: uid(), name: "Intercommunalité", slug: "epci", type: "string/=", sectionId: "string" },
-  ];
-  const parSlug = Object.fromEntries(params.map((p) => [p.slug, p.id]));
-  const lier = (carte, slugs) =>
-    slugs.map((s) => ({ parameter_id: parSlug[s], card_id: carte.id, target: ["dimension", ["template-tag", s]] }));
-
-  const tableau = await api("POST", "/dashboard", {
-    name: CONFIG.nomTableau, collection_id: collection.id, parameters: params,
-    description: "Consommation d'espaces naturels, agricoles et forestiers (Cerema, 2011-2025) au regard de l'objectif de réduction de moitié. Projet github.com/aymericmld/artificialisation-sols.",
-  });
-
-  let n = -1;
-  const place = (carte, col, row, x, y, liens = []) =>
-    ({ id: n--, card_id: carte.id, col, row, size_x: x, size_y: y, parameter_mappings: lier(carte, liens), visualization_settings: {} });
-  const texte = (txt, col, row, x, y) => ({
-    id: n--, card_id: null, col, row, size_x: x, size_y: y, parameter_mappings: [],
-    visualization_settings: { virtual_card: { name: null, display: "text", visualization_settings: {}, dataset_query: {}, archived: false }, text: txt },
-  });
-
-  const cartes = [
-    texte("## Où en est la trajectoire du « zéro artificialisation nette » ?\nRythme 2021-2023 comparé à 2011-2020. L'année 2024, sous-estimée par le Cerema, n'entre que dans le cumul consommé. Les chiffres clés portent sur la France entière.", 0, 0, 24, 3),
-    place(q.rythme, 0, 3, 6, 3),
-    place(q.evolution, 6, 3, 6, 3),
-    place(q.enveloppe, 12, 3, 6, 3),
-    place(q.requis, 18, 3, 6, 3),
-    place(q.serie, 0, 6, 14, 7, ["region", "departement", "epci"]),
-    place(q.carte, 14, 6, 10, 7, ["region"]),
-    place(q.tableau, 0, 13, 16, 8, ["region", "departement", "epci"]),
-    place(q.statut, 16, 13, 8, 8, ["region", "departement"]),
-    place(q.nuage, 0, 21, 14, 7, ["region", "departement"]),
-    place(q.densite, 14, 21, 10, 7),
-  ];
-  await api("PUT", `/dashboard/${tableau.id}`, { dashcards: cartes, parameters: params, width: "full" });
-
-  // Nombres au format français (virgule décimale, espace pour les milliers)
   const formats = (await api("GET", "/setting/custom-formatting").catch(() => ({}))) || {};
   await api("PUT", "/setting/custom-formatting", {
     value: { ...formats, "type/Number": { ...(formats["type/Number"] || {}), number_separators: ", " } },
   });
-  return { tableau: tableau.id, url: `${location.origin}/dashboard/${tableau.id}` };
+
+  // 3. Collection (l'ancienne version est archivée)
+  const collections = await api("GET", "/collection");
+  for (const c of collections.filter((c) => c.name === CONFIG.nomTableau && !c.archived)) {
+    await api("PUT", `/collection/${c.id}`, { archived: true });
+  }
+  const collection = await api("POST", "/collection", { name: CONFIG.nomTableau, color: "#2a78d6" });
+
+  // Filtres de champ : chaque question filtre sur les colonnes de sa propre table
+  const libelles = { region: "Région", departement: "Département", epci: "Intercommunalité" };
+  const TOUS = ["region", "departement", "epci"];
+  const filtres = (table, slugs = TOUS) => Object.fromEntries(slugs.map((s) => [s, {
+    id: uid(), name: s, "display-name": libelles[s], type: "dimension",
+    dimension: ["field", champs[`${table}.${s}`], null], "widget-type": "string/=",
+  }]));
+  const where = (slugs = TOUS) => slugs.map((s) => `{{${s}}}`).join(" AND ");
+  const question = (nom, description, sql, display, viz, tags = {}) =>
+    api("POST", "/card", {
+      name: nom, description, display, collection_id: collection.id, visualization_settings: viz,
+      dataset_query: { type: "native", database: base.id, native: { query: sql, "template-tags": tags } },
+    });
+
+  // 4. Questions
+  const q = {};
+  const kpi = (nom, description, expression, suffixe = "") =>
+    question(nom, description,
+      `SELECT ${expression} AS valeur FROM artif.commune WHERE ${where()}`,
+      "scalar",
+      { "scalar.compact_primary_number": false, column_settings: { '["name","valeur"]': { suffix: suffixe } } },
+      filtres("commune"));
+
+  q.ref = await kpi("Rythme 2011-2020 (ha/an)",
+    "Consommation annuelle moyenne de la décennie de référence de la loi.",
+    "round(sum(conso_reference_ha) / 10)");
+  q.objectif = await kpi("Objectif 2021-2030 (ha/an)",
+    "Rythme annuel moyen à ne pas dépasser sur 2021-2030 : la moitié du rythme 2011-2020.",
+    "round(sum(conso_reference_ha) / 20)");
+  q.actuel = await kpi("Rythme 2021-2023 (ha/an)",
+    "Consommation annuelle moyenne depuis la loi (2024, sous-estimée, est exclue).",
+    "round(sum(conso_rythme_ha) / 3)");
+  q.enveloppe = await kpi("Enveloppe 2021-2030 déjà consommée",
+    "Consommation 2021-2024 rapportée à l'enveloppe de la décennie (moitié de la consommation 2011-2020). Borne basse : 2024 est sous-estimée.",
+    "round(100 * sum(conso_cumul_ha) / nullif(sum(conso_reference_ha) / 2, 0))", " %");
+  q.requis = await kpi("À ne pas dépasser en 2025-2030 (ha/an)",
+    "Rythme annuel maximal sur 2025-2030 pour respecter l'enveloppe : ce qui en reste après 2021-2024, réparti sur six ans.",
+    "round(greatest(sum(conso_reference_ha) / 2 - sum(conso_cumul_ha), 0) / 6)");
+
+  q.trajectoire = await question(
+    "Trajectoire depuis 2021 : consommation cumulée et objectif (ha)",
+    "Hectares consommés depuis le 1er janvier 2021, à la fin de chaque année, comparés à la trajectoire de l'objectif (-50 %) et à la poursuite du rythme 2011-2020.",
+    `WITH f AS (
+  SELECT annee, sum(conso_ha) AS ha FROM artif.v_flux_annuel
+  WHERE ${where()} GROUP BY annee
+),
+r AS (SELECT sum(ha) FILTER (WHERE annee BETWEEN 2011 AND 2020) / 10 AS rythme FROM f),
+a AS (SELECT annee, sum(ha) OVER (ORDER BY annee) AS cumul FROM f WHERE annee >= 2021)
+SELECT y.annee::text AS "Année", s.serie AS "Série", round(s.ha::numeric) AS "Hectares cumulés depuis 2021"
+FROM generate_series(2021, 2030) AS y(annee)
+CROSS JOIN r
+CROSS JOIN LATERAL (VALUES
+  ('Consommation observée', (SELECT cumul FROM a WHERE a.annee = y.annee)),
+  ('Objectif de la loi (-50 %)', r.rythme * 0.5 * (y.annee - 2020)),
+  ('Si le rythme 2011-2020 continuait', r.rythme * (y.annee - 2020))
+) AS s(serie, ha)
+WHERE s.ha IS NOT NULL
+ORDER BY 1, 2`,
+    "line",
+    {
+      "graph.dimensions": ["Année", "Série"], "graph.metrics": ["Hectares cumulés depuis 2021"],
+      "graph.x_axis.title_text": "Fin d'année", "graph.y_axis.title_text": "Hectares cumulés depuis 2021",
+      series_settings: {
+        "Consommation observée": { color: CONFIG.couleurs.actuel, "line.marker_enabled": true },
+        "Objectif de la loi (-50 %)": { color: CONFIG.couleurs.objectif, "line.style": "dashed" },
+        "Si le rythme 2011-2020 continuait": { color: CONFIG.couleurs.tendance, "line.style": "dotted" },
+      },
+    },
+    filtres("v_flux_annuel"));
+
+  q.carte = await question(
+    "Part de l'enveloppe 2021-2030 déjà consommée, par département (%)",
+    "Consommation 2021-2024 rapportée à la moitié de la consommation 2011-2020. Au-delà de 100 %, le département a déjà dépassé son enveloppe repère.",
+    `SELECT code_departement, departement, part_enveloppe_consommee_pct AS "Enveloppe consommée (%)"
+FROM artif.v_trajectoire_departement
+WHERE {{region}}`,
+    "map",
+    { "map.type": "region", "map.region": "departements", "map.dimension": "code_departement",
+      "map.metric": "Enveloppe consommée (%)" },
+    filtres("v_trajectoire_departement", ["region"]));
+
+  q.departements = await question(
+    "Trajectoire par département",
+    "Cliquer sur un département pour filtrer le tableau de bord, puis sur une intercommunalité.",
+    `SELECT departement AS "Département", region AS "Région",
+       round(rythme_reference_ha_an) AS "2011-2020 (ha/an)",
+       round(rythme_reference_ha_an / 2) AS "Objectif (ha/an)",
+       round(rythme_actuel_ha_an) AS "2021-2023 (ha/an)",
+       round(100 * evolution_rythme) AS "Évolution (%)",
+       round(100 * part_enveloppe_consommee) AS "Enveloppe consommée (%)",
+       round(rythme_requis_ha_an) AS "À tenir 2025-2030 (ha/an)"
+FROM artif.departement
+WHERE {{region}}
+ORDER BY part_enveloppe_consommee DESC NULLS LAST`,
+    "table", miseEnForme(),
+    filtres("departement", ["region"]));
+
+  q.epci = await question(
+    "Trajectoire par intercommunalité",
+    "Cliquer sur une intercommunalité pour filtrer les graphiques.",
+    `SELECT epci AS "Intercommunalité", departement AS "Département",
+       rythme_2011_2020_ha_an AS "2011-2020 (ha/an)",
+       round(rythme_2011_2020_ha_an / 2, 1) AS "Objectif (ha/an)",
+       rythme_2021_2023_ha_an AS "2021-2023 (ha/an)",
+       evolution_rythme_pct AS "Évolution (%)",
+       part_enveloppe_consommee_pct AS "Enveloppe consommée (%)",
+       statut AS "Trajectoire"
+FROM artif.v_trajectoire_epci
+WHERE ${where()}
+ORDER BY part_enveloppe_consommee_pct DESC NULLS LAST`,
+    "table", miseEnForme(),
+    filtres("v_trajectoire_epci"));
+
+  q.destinations = await question(
+    "Rythme annuel par usage : avant et depuis la loi (ha/an)",
+    "Consommation annuelle moyenne par destination, 2011-2020 et 2021-2023. Entre parenthèses : l'évolution.",
+    `WITH f AS (
+  SELECT destination,
+         sum(conso_ha) FILTER (WHERE annee BETWEEN 2011 AND 2020) / 10 AS ref,
+         sum(conso_ha) FILTER (WHERE annee BETWEEN 2021 AND 2023) / 3 AS actuel
+  FROM artif.v_flux_annuel
+  WHERE ${where()}
+  GROUP BY destination
+)
+SELECT destination || CASE WHEN ref > 0
+         THEN ' (' || CASE WHEN round(100 * (actuel / ref - 1)) > 0 THEN '+' ELSE '' END
+                   || (round(100 * (actuel / ref - 1)) + 0) || ' %)'
+         ELSE '' END AS "Usage",
+       p.periode AS "Période", round(p.ha::numeric) AS "Hectares par an"
+FROM f CROSS JOIN LATERAL (VALUES ('2011-2020', ref), ('2021-2023', actuel)) AS p(periode, ha)
+ORDER BY f.ref DESC, p.periode`,
+    "bar",
+    {
+      "graph.dimensions": ["Usage", "Période"], "graph.metrics": ["Hectares par an"],
+      "graph.show_values": true, "graph.label_value_formatting": "full",
+      "graph.x_axis.title_text": "", "graph.y_axis.title_text": "Hectares par an",
+      series_settings: { "2011-2020": { color: CONFIG.couleurs.reference }, "2021-2023": { color: CONFIG.couleurs.actuel } },
+    },
+    filtres("v_flux_annuel"));
+
+  q.serie = await question(
+    "Consommation annuelle par usage (ha)",
+    "Hectares consommés chaque année. 2024 est sous-estimée : le Cerema attend sa stabilisation dans 2 à 3 millésimes.",
+    `SELECT annee::text AS "Année", destination AS "Usage", round(sum(conso_ha)::numeric, 1) AS "Hectares"
+FROM artif.v_flux_annuel
+WHERE ${where()}
+GROUP BY annee, destination
+ORDER BY annee, destination`,
+    "bar",
+    { "graph.dimensions": ["Année", "Usage"], "graph.metrics": ["Hectares"], "stackable.stack_type": "stacked",
+      "graph.x_axis.title_text": "", "graph.y_axis.title_text": "Hectares" },
+    filtres("v_flux_annuel"));
+
+  q.repartition = await question(
+    "Nouveaux ménages et terres consommées pour l'habitat, par type d'espace (2011-2022, %)",
+    "Pour chaque type d'espace : sa part des ménages supplémentaires et sa part des terres consommées pour l'habitat.",
+    `WITH t AS (
+  SELECT densite, sum(gain_menages) AS menages, sum(conso_1122_habitat_ha) AS habitat
+  FROM artif.commune
+  WHERE densite IS NOT NULL AND ${where()}
+  GROUP BY densite
+),
+x AS (
+  SELECT densite,
+         100 * greatest(menages, 0) / nullif(sum(greatest(menages, 0)) OVER (), 0) AS p_men,
+         100 * habitat / nullif(sum(habitat) OVER (), 0) AS p_hab
+  FROM t
+)
+SELECT x.densite AS "Type d'espace", v.serie AS "Part", round(v.pct::numeric) AS "%"
+FROM x CROSS JOIN LATERAL (VALUES ('Part des ménages supplémentaires', x.p_men),
+                                  ('Part des terres consommées pour l''habitat', x.p_hab)) AS v(serie, pct)
+ORDER BY ${ordreDensite("x.densite")}, v.serie DESC`,
+    "bar",
+    {
+      "graph.dimensions": ["Type d'espace", "Part"], "graph.metrics": ["%"], "graph.show_values": true,
+      "graph.x_axis.title_text": "", "graph.y_axis.title_text": "%",
+      series_settings: {
+        "Part des ménages supplémentaires": { color: CONFIG.couleurs.reference },
+        "Part des terres consommées pour l'habitat": { color: CONFIG.couleurs.actuel },
+      },
+    },
+    filtres("commune"));
+
+  q.surface = await question(
+    "Terres consommées pour loger un ménage de plus (m², 2011-2022)",
+    "Hectares consommés pour l'habitat entre 2011 et 2022, divisés par le nombre de ménages supplémentaires, convertis en m². Non calculé si le nombre de ménages n'a pas augmenté.",
+    `SELECT densite AS "Type d'espace",
+       CASE WHEN sum(gain_menages) > 0
+            THEN round(sum(conso_1122_habitat_ha) * 10000 / sum(gain_menages)) END AS "m² par ménage supplémentaire"
+FROM artif.commune
+WHERE densite IS NOT NULL AND ${where()}
+GROUP BY densite
+ORDER BY ${ordreDensite("densite")}`,
+    "row",
+    { "graph.dimensions": ["Type d'espace"], "graph.metrics": ["m² par ménage supplémentaire"],
+      "graph.show_values": true, "graph.x_axis.title_text": "", "graph.y_axis.title_text": "m² par ménage supplémentaire",
+      series_settings: { "m² par ménage supplémentaire": { color: CONFIG.couleurs.reference } } },
+    filtres("commune"));
+
+  // 5. Tableau de bord, grille de 24 colonnes
+  const params = TOUS.map((slug) => ({ id: uid(), name: libelles[slug], slug, type: "string/=", sectionId: "string" }));
+  const p = Object.fromEntries(params.map((x) => [x.slug, x.id]));
+  const tableau = await api("POST", "/dashboard", {
+    name: CONFIG.nomTableau, collection_id: collection.id, parameters: params,
+    description: "Consommation d'espaces naturels, agricoles et forestiers (Cerema, millésime 2011-2025) au regard de l'objectif de la loi Climat et résilience. Projet github.com/aymericmld/artificialisation-sols.",
+  });
+
+  let n = -1;
+  const place = (carte, col, row, x, y, liens = TOUS, viz = {}) => ({
+    id: n--, card_id: carte.id, col, row, size_x: x, size_y: y, visualization_settings: viz,
+    parameter_mappings: liens.map((s) => ({ parameter_id: p[s], card_id: carte.id, target: ["dimension", ["template-tag", s]] })),
+  });
+  const texte = (txt, col, row, x, y) => ({
+    id: n--, card_id: null, col, row, size_x: x, size_y: y, parameter_mappings: [],
+    visualization_settings: { virtual_card: { name: null, display: "text", visualization_settings: {}, dataset_query: {}, archived: false }, text: txt },
+  });
+  // Clic sur une ligne : renseigne le filtre du tableau de bord
+  const filtrerAuClic = (colonne, slug) => ({
+    click_behavior: {
+      type: "crossfilter",
+      parameterMapping: { [p[slug]]: { id: p[slug], source: { type: "column", id: colonne, name: colonne }, target: { type: "parameter", id: p[slug] } } },
+    },
+  });
+
+  const dashcards = [
+    texte(`# Artificialisation des sols : où en est l'objectif de la loi ?
+Consommation d'espaces naturels, agricoles et forestiers par les nouvelles constructions et infrastructures, d'après les données officielles du Cerema (2011-2025). Les filtres en haut de page s'appliquent à toutes les cartes.`, 0, 0, 24, 3),
+    texte(`## L'objectif politique
+**La loi Climat et résilience du 22 août 2021** impose de **diviser par deux la consommation d'espaces entre 2021 et 2031** par rapport à 2011-2021, puis d'atteindre le **« zéro artificialisation nette » (ZAN) en 2050** : chaque hectare artificialisé devra alors être compensé par un hectare renaturé.
+L'effort est réparti entre régions par les Sraddet, puis décliné dans les Scot et les PLU(i). Ici, chaque territoire reçoit le même repère : **une enveloppe 2021-2030 égale à la moitié de sa consommation 2011-2020**. Le dispositif fait l'objet de débats et de propositions d'assouplissement au Parlement.
+
+Chiffres clés en **hectares par an**, sauf l'enveloppe utilisée (consommation 2021-2024 rapportée à l'enveloppe 2021-2030). L'icône ⓘ d'une carte donne sa définition.`, 0, 3, 24, 5),
+    place(q.ref, 0, 8, 5, 3, TOUS, { "card.title": "Rythme 2011-2020" }),
+    place(q.objectif, 5, 8, 4, 3, TOUS, { "card.title": "Objectif" }),
+    place(q.actuel, 9, 8, 5, 3, TOUS, { "card.title": "Rythme 2021-2023" }),
+    place(q.enveloppe, 14, 8, 5, 3, TOUS, { "card.title": "Enveloppe utilisée" }),
+    place(q.requis, 19, 8, 5, 3, TOUS, { "card.title": "Rythme à tenir" }),
+    place(q.trajectoire, 0, 11, 14, 9),
+    place(q.carte, 14, 11, 10, 9, ["region"], { "card.title": "Enveloppe 2021-2030 déjà consommée (%)" }),
+    texte(`## Par territoire
+Cliquer sur un **département** pour afficher ses intercommunalités, puis sur une **intercommunalité** pour filtrer tous les graphiques. En rouge : consommation en hausse depuis 2021, ou enveloppe repère déjà dépassée.`, 0, 20, 24, 3),
+    place(q.departements, 0, 23, 24, 8, ["region"], filtrerAuClic("Département", "departement")),
+    place(q.epci, 0, 31, 24, 8, TOUS, filtrerAuClic("Intercommunalité", "epci")),
+    texte(`## Par usage
+L'habitat représente les deux tiers de la consommation. Comparer le rythme de chaque usage avant et depuis la loi montre où la baisse a lieu.`, 0, 39, 24, 2),
+    place(q.destinations, 0, 41, 12, 8),
+    place(q.serie, 12, 41, 12, 8),
+    texte(`## Où s'installent les nouveaux ménages, et à quel coût en terres ?
+Entre 2011 et 2022, on rapporte les terres consommées pour l'habitat au nombre de **ménages supplémentaires** (recensements de l'INSEE). En France, l'**urbain dense** a accueilli 35 % des nouveaux ménages pour 4 % des terres consommées pour l'habitat, soit **66 m² par ménage** ; le **rural non périurbain** en a accueilli 8 % pour 31 % de ces terres, soit **2 086 m² par ménage**.`, 0, 49, 24, 3),
+    place(q.repartition, 0, 52, 14, 8, TOUS, { "card.title": "Part des nouveaux ménages et des terres consommées pour l'habitat (%)" }),
+    place(q.surface, 14, 52, 10, 8, TOUS, { "card.title": "Terres consommées par ménage en plus (m²)" }),
+    texte(`Source : Cerema, consommation d'espaces NAF 2011-2025 (Fichiers fonciers) ; INSEE, recensements 2011 et 2022. L'année 2024 est sous-estimée et n'entre que dans le cumul consommé. Méthode et code : [github.com/aymericmld/artificialisation-sols](https://github.com/aymericmld/artificialisation-sols).`, 0, 60, 24, 2),
+  ];
+  await api("PUT", `/dashboard/${tableau.id}`, { dashcards, parameters: params, width: "full" });
+  return { tableau: tableau.id, url: `${location.origin}/dashboard/${tableau.id}`,
+           cartes: Object.fromEntries(Object.entries(q).map(([k, v]) => [k, v.id])) };
 }
 
 creer();

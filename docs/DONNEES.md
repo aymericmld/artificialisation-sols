@@ -30,7 +30,7 @@ La documentation du Cerema annonce des flux en hectares. Dans le fichier, ils so
 
 ## Contours des départements
 
-`data/reference/departements.geojson` est versionné : c'est la version simplifiée des contours de [france-geojson](https://github.com/gregoiredavid/france-geojson), elle-même dérivée d'Admin Express (IGN). Il sert à la carte du README et à la carte personnalisée de Metabase (propriété `code`).
+`data/reference/departements.geojson` est versionné : c'est la version simplifiée des contours de [france-geojson](https://github.com/gregoiredavid/france-geojson), elle-même dérivée d'Admin Express (IGN). Il sert à la carte personnalisée de Metabase (propriété `code`).
 
 ## Pour aller plus loin
 
